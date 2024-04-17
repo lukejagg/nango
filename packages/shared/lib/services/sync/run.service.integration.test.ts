@@ -5,11 +5,12 @@ import { SyncStatus, SyncType } from '../../models/Sync.js';
 import * as database from '../../db/database.js';
 import * as dataMocks from './data/mocks.js';
 import * as dataService from './data/data.service.js';
-import * as recordsService from './data/records.service.js';
+import * as legacyRecordsService from './data/records.service.js';
 import * as jobService from './job.service.js';
 import type { CustomerFacingDataRecord, IntegrationServiceInterface, Sync, Job as SyncJob, SyncResult } from '../../models/Sync.js';
 import type { DataResponse } from '../../models/Data.js';
 import type { Connection } from '../../models/Connection.js';
+import { records as recordsService } from '@nangohq/records';
 
 class integrationServiceMock implements IntegrationServiceInterface {
     async runScript() {
@@ -23,6 +24,11 @@ class integrationServiceMock implements IntegrationServiceInterface {
 }
 
 const integrationService = new integrationServiceMock();
+const recordsServiceImpl = {
+    markNonCurrentGenerationRecordsAsDeleted: async (connectionId: number, model: string, syncId: string, generation: number): Promise<string[]> => {
+        return recordsService.markNonCurrentGenerationRecordsAsDeleted(connectionId, model, syncId, generation);
+    }
+};
 
 describe('Running sync', () => {
     beforeAll(async () => {
@@ -176,6 +182,7 @@ describe('SyncRun', () => {
     it('should initialize correctly', () => {
         const config = {
             integrationService: integrationService as unknown as IntegrationServiceInterface,
+            recordsService: recordsServiceImpl,
             writeToDb: true,
             nangoConnection: {
                 id: 1,
@@ -227,6 +234,7 @@ const runJob = async (
     }
     const config = {
         integrationService: integrationService,
+        recordsService: recordsServiceImpl,
         writeToDb: true,
         nangoConnection: connection,
         syncName: sync.name,
@@ -238,7 +246,7 @@ const runJob = async (
     const syncRun = new SyncRun(config);
 
     // format and upsert records
-    const { response: records } = recordsService.formatDataRecords(rawRecords, connection.id!, model, sync.id, syncJob.id, softDelete);
+    const { response: records } = legacyRecordsService.formatDataRecords(rawRecords, connection.id!, model, sync.id, syncJob.id, softDelete);
     if (!records) {
         throw new Error(`failed to format records`);
     }
@@ -285,7 +293,12 @@ const verifySyncRun = async (
 };
 
 const getRecords = async (connection: Connection, model: string) => {
-    const { response } = await recordsService.getAllDataRecords(connection.connection_id, connection.provider_config_key, connection.environment_id, model);
+    const { response } = await legacyRecordsService.getAllDataRecords(
+        connection.connection_id,
+        connection.provider_config_key,
+        connection.environment_id,
+        model
+    );
     if (response) {
         return response.records;
     }

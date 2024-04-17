@@ -22,6 +22,7 @@ import {
     getSyncByIdAndName,
     getLastSyncDate
 } from '@nangohq/shared';
+import { records } from '@nangohq/records';
 import { getLogger, env } from '@nangohq/utils';
 import { BigQueryClient } from '@nangohq/data-ingestion/dist/index.js';
 import integrationService from './integration.service.js';
@@ -33,6 +34,12 @@ const bigQueryClient = await BigQueryClient.createInstance({
     datasetName: 'raw',
     tableName: `${env}_script_runs`
 });
+
+const recordsService = {
+    markNonCurrentGenerationRecordsAsDeleted: async (connectionId: number, model: string, syncId: string, generation: number): Promise<string[]> => {
+        return records.markNonCurrentGenerationRecordsAsDeleted(connectionId, model, syncId, generation);
+    }
+};
 
 export async function routeSync(args: InitialSyncArgs): Promise<boolean | object | null> {
     const { syncId, syncJobId, syncName, nangoConnection, debug } = args;
@@ -61,6 +68,7 @@ export async function runAction(args: ActionArgs): Promise<ServiceResponse> {
     const syncRun = new syncRunService({
         bigQueryClient,
         integrationService,
+        recordsService,
         writeToDb: true,
         nangoConnection,
         syncName: actionName,
@@ -234,6 +242,7 @@ export async function syncProvider(
         const syncRun = new syncRunService({
             bigQueryClient,
             integrationService,
+            recordsService,
             writeToDb: true,
             syncId,
             syncJobId,
@@ -322,6 +331,7 @@ export async function runWebhook(args: WebhookArgs): Promise<boolean> {
     const syncRun = new syncRunService({
         bigQueryClient,
         integrationService,
+        recordsService,
         writeToDb: true,
         nangoConnection,
         syncJobId: syncJobId?.id as number,
@@ -415,6 +425,7 @@ export async function cancelActivity(workflowArguments: InitialSyncArgs | Contin
         const syncRun = new syncRunService({
             bigQueryClient,
             integrationService,
+            recordsService,
             writeToDb: true,
             syncId,
             nangoConnection,
